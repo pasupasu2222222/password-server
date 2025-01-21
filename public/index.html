@@ -110,6 +110,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
+        const apiBase = window.location.origin; // 現在のURLからAPIのベースを取得
         let characterFrequency = {};
 
         function checkPasswordStrength() {
@@ -173,7 +174,7 @@
         }
 
         function saveFrequency(frequency) {
-            fetch('/saveFrequency', {
+            fetch(`${apiBase}/api/saveFrequency`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -220,7 +221,7 @@
         }
 
         function generateImprovedPassword(inputPassword) {
-            fetch('/getFrequency')
+            fetch(`${apiBase}/api/getFrequency`)
                 .then(response => response.json())
                 .then(frequency => {
                     const usedCharacters = new Set(Object.keys(frequency));
@@ -239,8 +240,8 @@
                     if (!/\d/.test(improvedPassword)) {
                         improvedPassword += unusedCharacters.find(c => /\d/.test(c)) || '1';
                     }
-                    if (!/[!@#$%^&*(),.?":{}|<>_-]/.test(improvedPassword)) {
-                        improvedPassword += unusedCharacters.find(c => /[!@#$%^&*(),.?":{}|<>_-]/.test(c)) || '!';
+                    if (!/[!@#$%^&*(),.?\":{}|<>_-]/.test(improvedPassword)) {
+                        improvedPassword += unusedCharacters.find(c => /[!@#$%^&*(),.?\":{}|<>_-]/.test(c)) || '!';
                     }
 
                     // 強度を高めるため、さらに使用頻度の低い文字を追加
@@ -254,7 +255,7 @@
         }
 
         function resetFrequency() {
-            fetch('/resetFrequency', {
+            fetch(`${apiBase}/api/resetFrequency`, {
                 method: 'POST'
             })
             .then(() => {

@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>パスワード強度チェッカー</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        form {
+            background-color: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 300px;
+            text-align: center;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 16px;
+            box-sizing: border-box;
+        }
+
+        #strength-indicator {
+            margin-bottom: 16px;
+            white-space: nowrap;
+        }
+
+        #strength-text {
+            font-weight: bold;
+            color: #333;
+            white-space: nowrap;
+        }
+
+        #reason {
+            color: #d9534f;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        #chartContainer {
+            width: 80%;
+            max-width: 600px;
+            height: 400px;
+            margin-top: 20px;
+        }
+
+        #suggestionContainer {
+            margin-bottom: 20px;
+        }
+
+        #suggestion {
+            margin-top: 10px;
+            font-weight: bold;
+            color: #007bff;
+        }
+    </style>
+</head>
+
+<body>
+    <form>
+        <h1>パスワード強度チェッカー</h1>
+        <label for="password">パスワード：</label>
+        <input type="text" id="password">
+        <button type="button" onclick="checkPasswordStrength()">チェック</button>
+        <div id="strength-indicator">パスワード強度: <span id="strength-text"></span></div>
+        <div id="reason"></div>
+    </form>
+
+    <div id="suggestionContainer">
+        <div id="suggestion">改善されたパスワードがここに表示されます</div>
+    </div>
+
+    <div id="chartContainer">
+        <canvas id="myChart"></canvas>
+    </div>
+
+    <button type="button" onclick="resetFrequency()">使用頻度をリセット</button>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let characterFrequency = {};
+
+        function checkPasswordStrength() {
+            // ローカルの頻度データをリセット
+            characterFrequency = {};
+
+            const passwordInput = document.getElementById('password');
+            const strengthIndicator = document.getElementById('strength-indicator');
+            const strengthText = document.getElementById('strength-text');
+            const reasonDiv = document.getElementById('reason');
+            const password = passwordInput.value;
+
+            // 強度を計算して表示
+            const result = calculatePasswordStrength(password);
+            strengthText.textContent = result.strength + '%';
+            reasonDiv.innerHTML = result.reason || '';
+
+            // パスワードの頻度を分析して保存
+            analyzePassword(password);
+            saveFrequency(characterFrequency);
+
+            // 改善されたパスワードを生成して表示
+            generateImprovedPassword(password);
+        }
+
+        function calculatePasswordStrength(password) {
+            let strength = 0;
+            let reason = '';
+
+            if (password.length >= 8) {
+                strength += 40;
+            } else {
+                reason += 'パスワードの長さが短すぎます。 ';
+            }
+
+            if (/[A-Z]/.test(password)) {
+                strength += 25;
+            } else {
+                reason += '大文字が含まれていません。 ';
+            }
+
+            if (/\d/.test(password)) {
+                strength += 25;
+            } else {
+                reason += '数字が含まれていません。 ';
+            }
+
+            if (/[!@#$%^&*(),.?":{}|<>_-]/.test(password)) {
+                strength += 10;
+            } else {
+                reason += '記号を使用してください。 ';
+            }
+
+            return { strength, reason };
+        }
+
+        function analyzePassword(password) {
+            for (let char of password) {
+                characterFrequency[char] = (characterFrequency[char] || 0) + 1;
+            }
+        }
+
+        function saveFrequency(frequency) {
+            fetch('/saveFrequency', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ frequency })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('頻度が保存されました:', data);
+                displayStatistics(data.frequency);
+            })
+            .catch(error => console.error('エラー:', error));
+        }
+
+        function displayStatistics(frequency) {
+            const ctx = document.getElementById('myChart').getContext('2d');
+            const labels = Object.keys(frequency);
+            const data = Object.values(frequency);
+
+            if (window.myChartInstance) {
+                window.myChartInstance.destroy();
+            }
+
+            window.myChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Character Frequency',
+                        data: data,
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function generateImprovedPassword(inputPassword) {
+            fetch('/getFrequency')
+                .then(response => response.json())
+                .then(frequency => {
+                    const usedCharacters = new Set(Object.keys(frequency));
+                    const allCharacters =
+                        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*(),.?\":{}|<>_-";
+                    const unusedCharacters = allCharacters.split('').filter(char => !usedCharacters.has(char));
+
+                    // 条件を満たす文字を加える
+                    let improvedPassword = inputPassword;
+                    if (!/[A-Z]/.test(improvedPassword)) {
+                        improvedPassword += unusedCharacters.find(c => /[A-Z]/.test(c)) || 'A';
+                    }
+                    if (!/[a-z]/.test(improvedPassword)) {
+                        improvedPassword += unusedCharacters.find(c => /[a-z]/.test(c)) || 'a';
+                    }
+                    if (!/\d/.test(improvedPassword)) {
+                        improvedPassword += unusedCharacters.find(c => /\d/.test(c)) || '1';
+                    }
+                    if (!/[!@#$%^&*(),.?":{}|<>_-]/.test(improvedPassword)) {
+                        improvedPassword += unusedCharacters.find(c => /[!@#$%^&*(),.?":{}|<>_-]/.test(c)) || '!';
+                    }
+
+                    // 強度を高めるため、さらに使用頻度の低い文字を追加
+                    while (improvedPassword.length < 12) {
+                        improvedPassword += unusedCharacters[Math.floor(Math.random() * unusedCharacters.length)] || '';
+                    }
+
+                    document.getElementById('suggestion').innerHTML = `<strong>改善されたパスワード:</strong> ${improvedPassword}`;
+                })
+                .catch(error => console.error('エラー:', error));
+        }
+
+        function resetFrequency() {
+            fetch('/resetFrequency', {
+                method: 'POST'
+            })
+            .then(() => {
+                alert('使用頻度をリセットしました！');
+                location.reload();
+            })
+            .catch(error => console.error('エラー:', error));
+        }
+    </script>
+</body>
+
+</html>
